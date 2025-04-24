@@ -53,3 +53,12 @@ variable "lambda_config" {
     error_message = "One of the following combinations must be provided: (create_zipfile = true and source_path), (zip_path), or s3 configuration"
   }
 }
+
+variable "github_token" {
+  description = "GitHub token configuration"
+  type = object({
+    secret_name = string
+    token       = optional(string)
+  })
+  sensitive = true
+}

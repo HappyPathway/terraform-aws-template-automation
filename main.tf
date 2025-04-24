@@ -81,6 +81,7 @@ resource "aws_lambda_function" "this" {
       var.lambda_config.environment_variables,
       {
         PARAM_STORE_PREFIX = var.parameter_store_prefix
+        GITHUB_TOKEN_SECRET_NAME = var.github_token.secret_name
       }
     )
   }
@@ -152,8 +153,42 @@ resource "aws_iam_role_policy" "parameter_store" {
   })
 }
 
+# IAM policy for Secrets Manager access
+resource "aws_iam_role_policy" "secrets_manager" {
+  name = "${var.name_prefix}-secrets-manager-policy"
+  role = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.github_token.secret_name}-*"
+        ]
+      }
+    ]
+  })
+}
+
 # CloudWatch Logs policy
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
   role       = aws_iam_role.lambda.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# Secrets Manager secret for GitHub token
+resource "aws_secretsmanager_secret" "github_token" {
+  count = var.github_token.token != null ? 1 : 0
+  name  = var.github_token.secret_name
+  tags  = var.tags
+}
+
+resource "aws_secretsmanager_secret_version" "github_token" {
+  count         = var.github_token.token != null ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.github_token[0].id
+  secret_string = var.github_token.token
 }
