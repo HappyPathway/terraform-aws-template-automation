@@ -71,21 +71,11 @@ resource "aws_lambda_function" "this" {
   memory_size   = var.lambda_config.memory_size
 
   # Source configuration - only one of these will be set
-  dynamic "filename" {
-    for_each = var.lambda_config.create_zipfile || var.lambda_config.zip_path != null ? [1] : []
-    content {
-      filename = var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_path : var.lambda_config.zip_path
-    }
-  }
-
-  dynamic "s3" {
-    for_each = var.lambda_config.s3 != null ? [var.lambda_config.s3] : []
-    content {
-      bucket         = s3.value.bucket
-      key            = s3.value.key
-      object_version = try(s3.value.object_version, null)
-    }
-  }
+  filename         = var.lambda_config.zip_path != null ? var.lambda_config.zip_path : (var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_path : null)
+  source_code_hash = var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_base64sha256 : null
+  s3_bucket        = var.lambda_config.s3 != null ? var.lambda_config.s3.bucket : null
+  s3_key           = var.lambda_config.s3 != null ? var.lambda_config.s3.key : null
+  s3_object_version = var.lambda_config.s3 != null ? try(var.lambda_config.s3.object_version, null) : null
 
   environment {
     variables = merge(

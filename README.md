@@ -40,6 +40,20 @@ module "template_automation" {
     source_path    = "../template_automation"  # Path to your Lambda source code
     runtime        = "python3.9"
     memory_size    = 256
+    timeout        = 300
+    
+    # Alternative options for deployment package:
+    # Option 1: Use pre-built zip file
+    # create_zipfile = false
+    # zip_path      = "path/to/function.zip"
+    
+    # Option 2: Use S3-hosted deployment package
+    # create_zipfile = false
+    # s3 = {
+    #   bucket         = "my-lambda-bucket"
+    #   key            = "lambda/template-automation.zip"
+    #   object_version = "1" # optional
+    # }
   }
   
   # Parameter Store configuration 
