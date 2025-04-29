@@ -18,6 +18,11 @@ output "api_id" {
   value       = aws_apigatewayv2_api.this.id
 }
 
+output "template_automation_url" {
+  description = "The full URL to call for template automation"
+  value       = "${aws_apigatewayv2_api.this.api_endpoint}/template"
+}
+
 output "lambda_role_arn" {
   description = "The ARN of the IAM role used by the Lambda function"
   value       = aws_iam_role.lambda.arn

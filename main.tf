@@ -42,7 +42,18 @@ resource "aws_apigatewayv2_stage" "this" {
 
 # SSM Parameters
 resource "aws_ssm_parameter" "parameters" {
-  for_each = var.ssm_parameters
+  for_each = merge(
+    var.ssm_parameters,
+    {
+      "GITHUB_API"                = var.github_api_url
+      "GITHUB_ORG_NAME"           = var.github_org_name
+      "TEMPLATE_REPO_NAME"        = var.template_repo_name
+      "TEMPLATE_CONFIG_FILE"      = var.template_config_file
+      "GITHUB_COMMIT_AUTHOR_NAME" = var.github_commit_author_name
+      "GITHUB_COMMIT_AUTHOR_EMAIL"= var.github_commit_author_email
+      "TEMPLATE_TOPICS"           = var.template_topics
+    }
+  )
 
   name  = "${var.parameter_store_prefix}/${each.key}"
   type  = "String"

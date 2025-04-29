@@ -17,17 +17,36 @@ This Terraform module deploys a template automation solution using AWS Lambda an
 module "template_automation" {
   source = "github.com/djaboxx/terraform-aws-template-automation"
 
-  name_prefix          = "my-automation"
-  create_lambda_zipfile = true
-  lambda_source_path   = "../template_automation"  # Path to your Lambda source code
+  name_prefix = "my-automation"
   
-  # Parameter Store configuration
+  # GitHub configuration
+  github_api_url            = "https://api.github.com"
+  github_org_name           = "my-org"
+  template_repo_name        = "my-template-repo"
+  template_config_file      = "config.json"
+  github_commit_author_name = "Template Automation"
+  github_commit_author_email = "automation@example.com"
+  template_topics           = "infrastructure,template"
+  
+  # GitHub token configuration
+  github_token = {
+    secret_name = "github/token"
+    # token     = "your-token-here"  # Optional: Provide directly (not recommended for production)
+  }
+  
+  # Lambda configuration
+  lambda_config = {
+    create_zipfile = true
+    source_path    = "../template_automation"  # Path to your Lambda source code
+    runtime        = "python3.9"
+    memory_size    = 256
+  }
+  
+  # Parameter Store configuration 
   parameter_store_prefix = "/template-automation"
+  # Additional custom parameters if needed
   ssm_parameters = {
-    "TEMPLATE_REPO_NAME"         = "my-template-repo"
-    "GITHUB_API"                 = "https://api.github.com"
-    "GITHUB_ORG_NAME"           = "my-org"
-    "TEMPLATE_CONFIG_FILE"       = "config.json"
+    "ADDITIONAL_PARAM" = "custom-value"
   }
 
   environment_variables = {
@@ -59,17 +78,17 @@ module "template_automation" {
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | name_prefix | Prefix to be used for resource names | `string` | n/a | yes |
-| create_lambda_zipfile | Whether to create the Lambda zip file from source code | `bool` | `false` | no |
-| lambda_source_path | Path to the Lambda function source code directory | `string` | `null` | yes, if create_lambda_zipfile is true |
-| lambda_zip_path | Path to pre-built Lambda deployment package | `string` | n/a | yes, if neither create_lambda_zipfile nor lambda_s3_source is true |
-| lambda_s3_source | Whether to source the Lambda zip from S3 | `bool` | `false` | no |
-| lambda_s3_bucket | S3 bucket containing the Lambda zip file | `string` | `null` | yes, if lambda_s3_source is true |
-| lambda_s3_key | S3 key of the Lambda zip file | `string` | `null` | yes, if lambda_s3_source is true |
-| lambda_s3_object_version | S3 object version of the Lambda zip file | `string` | `null` | no |
-| lambda_runtime | Runtime for the Lambda function | `string` | `"python3.9"` | no |
-| lambda_timeout | Timeout for the Lambda function in seconds | `number` | `300` | no |
-| lambda_memory_size | Memory size for the Lambda function in MB | `number` | `256` | no |
-| environment_variables | Environment variables for the Lambda function | `map(string)` | `{}` | no |
+| parameter_store_prefix | Prefix for SSM parameters | `string` | `/template-automation` | no |
+| ssm_parameters | Additional SSM parameters to create | `map(string)` | `{}` | no |
+| github_api_url | URL for the GitHub Enterprise API | `string` | `https://api.github.com` | no |
+| github_org_name | GitHub organization name | `string` | n/a | yes |
+| template_repo_name | GitHub repository name for the template | `string` | n/a | yes |
+| template_config_file | Name of the config file to write in new repositories | `string` | `config.json` | no |
+| github_commit_author_name | Name for commit author | `string` | `Template Automation` | no |
+| github_commit_author_email | Email for commit author | `string` | `automation@example.com` | no |
+| template_topics | Topics to assign to new repositories (comma-separated string) | `string` | `infrastructure` | no |
+| github_token | GitHub token configuration object with secret_name (required) and token (optional) | `object` | n/a | yes |
+| lambda_config | Lambda function configuration object | `object` | n/a | yes |
 | tags | Tags to be applied to all resources | `map(string)` | `{}` | no |
 
 ## Outputs
