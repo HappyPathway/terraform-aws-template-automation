@@ -71,10 +71,10 @@ resource "aws_lambda_function" "this" {
   memory_size   = var.lambda_config.memory_size
 
   # Source configuration - only one of these will be set
-  filename         = var.lambda_config.zip_path != null ? var.lambda_config.zip_path : (var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_path : null)
-  source_code_hash = var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_base64sha256 : null
-  s3_bucket        = var.lambda_config.s3 != null ? var.lambda_config.s3.bucket : null
-  s3_key           = var.lambda_config.s3 != null ? var.lambda_config.s3.key : null
+  filename          = var.lambda_config.zip_path != null ? var.lambda_config.zip_path : (var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_path : null)
+  source_code_hash  = var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_base64sha256 : null
+  s3_bucket         = var.lambda_config.s3 != null ? var.lambda_config.s3.bucket : null
+  s3_key            = var.lambda_config.s3 != null ? var.lambda_config.s3.key : null
   s3_object_version = var.lambda_config.s3 != null ? try(var.lambda_config.s3.object_version, null) : null
 
   environment {
