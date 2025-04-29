@@ -11,6 +11,12 @@ This Terraform module deploys a template automation solution using AWS Lambda an
 - CORS configuration for API Gateway
 - Customizable resource naming via prefix
 
+## Lambda Build Process
+
+This module deploys the template automation Lambda function, which is built separately in the template-automation-lambda repository using a Packer configuration file. The build process runs in GitHub Actions, creating the deployment package that this module uses.
+
+While this module handles the deployment of the Lambda function to AWS, it relies on the pre-built Lambda package created through the Packer-based build pipeline.
+
 ## Usage
 
 ```hcl
@@ -47,7 +53,7 @@ module "template_automation" {
     # create_zipfile = false
     # zip_path      = "path/to/function.zip"
     
-    # Option 2: Use S3-hosted deployment package
+    # Option 2: Use S3-hosted deployment package (recommended for Packer-built Lambda)
     # create_zipfile = false
     # s3 = {
     #   bucket         = "my-lambda-bucket"
