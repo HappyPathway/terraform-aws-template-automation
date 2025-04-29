@@ -67,20 +67,20 @@ variable "lambda_config" {
     runtime     = optional(string, "python3.9")
     timeout     = optional(number, 300)
     memory_size = optional(number, 256)
-    
+
     # Environment configuration
     environment_variables = optional(map(string), {})
-    
+
     # Source configuration - one of these must be provided
     create_zipfile = optional(bool, false)
     source_path    = optional(string)
     zip_path       = optional(string)
-    
+
     # S3 source configuration
     s3 = optional(object({
-      bucket          = string
-      key             = string
-      object_version  = optional(string)
+      bucket         = string
+      key            = string
+      object_version = optional(string)
     }))
   })
 
