@@ -1,0 +1,47 @@
+provider "aws" {
+  region = "us-west-2"
+}
+
+# Example 1: Using local source code
+module "template_automation_from_source" {
+  source = "../.."
+
+  name_prefix = "template-automation-source"
+  
+  # GitHub configuration
+  github_api_url            = "https://api.github.com"
+  github_org_name           = "my-org"
+  template_repo_name        = "my-template-repo"
+  template_config_file      = "config.json"
+  github_commit_author_name = "Template Automation"
+  github_commit_author_email = "automation@example.com"
+  template_topics           = "infrastructure,template"
+  
+  lambda_config = {
+    create_zipfile = true
+    source_path    = "../../template_automation"
+    runtime        = "python3.9"
+    memory_size    = 256
+    timeout        = 300
+    environment_variables = {
+      SECRET_NAME = "github/token"
+    }
+  }
+
+  parameter_store_prefix = "/template-automation"
+  # Additional custom parameters if needed
+  ssm_parameters = {
+    "ADDITIONAL_PARAM" = "custom-value"
+  }
+
+  tags = {
+    Environment = "dev"
+    Project     = "template-automation"
+  }
+  
+  github_token = {
+    secret_name = "github/token"
+    # In a real scenario, don't include the actual token in source control
+    # token     = var.github_token
+  }
+}

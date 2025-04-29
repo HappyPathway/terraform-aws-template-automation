@@ -4,8 +4,8 @@ data "aws_region" "current" {}
 
 locals {
   lambda_function_name = "${var.name_prefix}-template-automation"
-  use_s3_source = var.lambda_config.s3 != null
-  use_local_archive = var.lambda_config.create_zipfile
+  use_s3_source        = var.lambda_config.s3 != null
+  use_local_archive    = var.lambda_config.create_zipfile
 }
 
 # Create zip file from source code if enabled
@@ -42,7 +42,18 @@ resource "aws_apigatewayv2_stage" "this" {
 
 # SSM Parameters
 resource "aws_ssm_parameter" "parameters" {
-  for_each = var.ssm_parameters
+  for_each = merge(
+    var.ssm_parameters,
+    {
+      "GITHUB_API"                 = var.github_api_url
+      "GITHUB_ORG_NAME"            = var.github_org_name
+      "TEMPLATE_REPO_NAME"         = var.template_repo_name
+      "TEMPLATE_CONFIG_FILE"       = var.template_config_file
+      "GITHUB_COMMIT_AUTHOR_NAME"  = var.github_commit_author_name
+      "GITHUB_COMMIT_AUTHOR_EMAIL" = var.github_commit_author_email
+      "TEMPLATE_TOPICS"            = var.template_topics
+    }
+  )
 
   name  = "${var.parameter_store_prefix}/${each.key}"
   type  = "String"
@@ -53,34 +64,24 @@ resource "aws_ssm_parameter" "parameters" {
 # Lambda Function
 resource "aws_lambda_function" "this" {
   function_name = local.lambda_function_name
-  role         = aws_iam_role.lambda.arn
-  handler      = "app.lambda_handler"
-  runtime      = var.lambda_config.runtime
-  timeout      = var.lambda_config.timeout
-  memory_size  = var.lambda_config.memory_size
+  role          = aws_iam_role.lambda.arn
+  handler       = "app.lambda_handler"
+  runtime       = var.lambda_config.runtime
+  timeout       = var.lambda_config.timeout
+  memory_size   = var.lambda_config.memory_size
 
   # Source configuration - only one of these will be set
-  dynamic "filename" {
-    for_each = var.lambda_config.create_zipfile || var.lambda_config.zip_path != null ? [1] : []
-    content {
-      filename = var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_path : var.lambda_config.zip_path
-    }
-  }
-
-  dynamic "s3" {
-    for_each = var.lambda_config.s3 != null ? [var.lambda_config.s3] : []
-    content {
-      bucket         = s3.value.bucket
-      key            = s3.value.key
-      object_version = try(s3.value.object_version, null)
-    }
-  }
+  filename          = var.lambda_config.zip_path != null ? var.lambda_config.zip_path : (var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_path : null)
+  source_code_hash  = var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_base64sha256 : null
+  s3_bucket         = var.lambda_config.s3 != null ? var.lambda_config.s3.bucket : null
+  s3_key            = var.lambda_config.s3 != null ? var.lambda_config.s3.key : null
+  s3_object_version = var.lambda_config.s3 != null ? try(var.lambda_config.s3.object_version, null) : null
 
   environment {
     variables = merge(
       var.lambda_config.environment_variables,
       {
-        PARAM_STORE_PREFIX = var.parameter_store_prefix
+        PARAM_STORE_PREFIX       = var.parameter_store_prefix
         GITHUB_TOKEN_SECRET_NAME = var.github_token.secret_name
       }
     )
