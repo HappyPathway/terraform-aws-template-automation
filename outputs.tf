@@ -10,7 +10,7 @@ output "lambda_function_name" {
 
 output "api_endpoint" {
   description = "The URL of the API Gateway endpoint"
-  value       = aws_apigatewayv2_api.this.api_endpoint
+  value       = "${aws_api_gateway_stage.template_automation.invoke_url}${aws_api_gateway_resource.template.path}"
 }
 
 output "api_id" {
@@ -26,4 +26,14 @@ output "template_automation_url" {
 output "lambda_role_arn" {
   description = "The ARN of the IAM role used by the Lambda function"
   value       = aws_iam_role.lambda.arn
+}
+
+output "execution_arn" {
+  description = "The execution ARN to be used in IAM policies"
+  value       = aws_api_gateway_rest_api.template_automation.execution_arn
+}
+
+output "api_arn" {
+  description = "The ARN of the REST API"
+  value       = aws_api_gateway_rest_api.template_automation.arn
 }

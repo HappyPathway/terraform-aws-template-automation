@@ -130,6 +130,167 @@ This module creates:
 4. API Gateway integration with the Lambda function
 5. CORS configuration for the API endpoint
 
+## IAM Authentication
+
+This module supports optional IAM authentication for the API Gateway endpoint. When enabled, clients must sign their requests using AWS SigV4 signing process.
+
+### Enabling IAM Authentication
+
+```hcl
+module "template_automation" {
+  source = "github.com/djaboxx/terraform-aws-template-automation"
+
+  name_prefix = "my-automation"
+  
+  # Enable IAM authentication
+  enable_iam_auth = true
+  allowed_iam_arns = [
+    "arn:aws:iam::123456789012:role/my-role",
+    "arn:aws:iam::123456789012:user/my-user"
+  ]
+
+  # ... rest of your configuration ...
+}
+```
+
+### Making Authenticated Requests
+
+When IAM authentication is enabled, you'll need to sign your HTTP requests using AWS SigV4. Here are examples in different languages:
+
+#### Python (using boto3)
+
+```python
+import boto3
+import requests
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
+
+def invoke_api(url, payload):
+    # Create a boto3 session (will use your default credentials)
+    session = boto3.Session()
+    credentials = session.get_credentials()
+    
+    # Prepare the request
+    request = AWSRequest(
+        method='POST',
+        url=url,
+        data=payload,
+        headers={
+            'Content-Type': 'application/json'
+        }
+    )
+    
+    # Sign the request
+    SigV4Auth(credentials, 'execute-api', session.region_name).add_auth(request)
+    
+    # Send the request using the signed headers
+    response = requests.post(
+        url,
+        headers=dict(request.headers),
+        data=payload
+    )
+    return response
+
+# Example usage
+api_url = 'https://your-api-id.execute-api.region.amazonaws.com/prod/template'
+payload = '{"templateName": "example"}'
+response = invoke_api(api_url, payload)
+```
+
+#### AWS CLI
+
+```bash
+aws apigateway test-invoke-method \
+  --rest-api-id your-api-id \
+  --resource-id your-resource-id \
+  --http-method POST \
+  --path-with-query-string /template \
+  --body '{"templateName": "example"}'
+```
+
+#### JavaScript (AWS SDK v3)
+
+```javascript
+import { SignatureV4 } from '@aws-sdk/signature-v4';
+import { Sha256 } from '@aws-crypto/sha256-js';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
+
+async function invokeApi(url, payload) {
+  // Create signature
+  const signer = new SignatureV4({
+    credentials: defaultProvider(),
+    region: 'your-region',
+    service: 'execute-api',
+    sha256: Sha256
+  });
+
+  // Prepare request
+  const request = new Request(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload)
+  });
+
+  // Sign request
+  const signedRequest = await signer.sign(request);
+  
+  // Send request
+  const response = await fetch(signedRequest);
+  return response;
+}
+
+// Example usage
+const apiUrl = 'https://your-api-id.execute-api.region.amazonaws.com/prod/template';
+const payload = { templateName: 'example' };
+const response = await invokeApi(apiUrl, payload);
+```
+
+### Required IAM Permissions
+
+When IAM authentication is enabled, the calling identity needs the following IAM permissions:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "execute-api:Invoke",
+            "Resource": "arn:aws:execute-api:region:account-id:api-id/stage/POST/template"
+        }
+    ]
+}
+```
+
+You can get the exact ARN from the module outputs:
+```hcl
+output "api_execution_arn" {
+  value = module.template_automation.execution_arn
+}
+```
+
+### Troubleshooting
+
+Common issues when using IAM authentication:
+
+1. **403 Forbidden**: Check that:
+   - Your IAM role/user ARN is in the `allowed_iam_arns` list
+   - You have the correct execute-api:Invoke permissions
+   - Your request is properly signed with SigV4
+
+2. **401 Unauthorized**: Verify that:
+   - Your AWS credentials are valid and not expired
+   - You're using the correct region in your signing process
+   - The date/time in your request is accurate
+
+3. **Missing Authentication Token**: Ensure that:
+   - You're including all required SigV4 headers
+   - The Authorization header is properly formatted
+
+For more detailed troubleshooting, enable CloudWatch logs in the API Gateway stage settings.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

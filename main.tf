@@ -193,3 +193,100 @@ resource "aws_secretsmanager_secret_version" "github_token" {
   secret_id     = aws_secretsmanager_secret.github_token[0].id
   secret_string = var.github_token.token
 }
+
+resource "aws_api_gateway_rest_api" "template_automation" {
+  name        = "${var.name_prefix}-template-automation"
+  description = "API for template automation Lambda function"
+
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
+}
+
+resource "aws_api_gateway_resource" "template" {
+  rest_api_id = aws_api_gateway_rest_api.template_automation.id
+  parent_id   = aws_api_gateway_rest_api.template_automation.root_resource_id
+  path_part   = "template"
+}
+
+resource "aws_api_gateway_method" "create_template" {
+  rest_api_id   = aws_api_gateway_rest_api.template_automation.id
+  resource_id   = aws_api_gateway_resource.template.id
+  http_method   = "POST"
+  authorization = var.enable_iam_auth ? "AWS_IAM" : "NONE"
+}
+
+# IAM Policy for API Gateway method access
+data "aws_iam_policy_document" "api_gateway_invoke" {
+  count = var.enable_iam_auth ? 1 : 0
+
+  statement {
+    effect = "Allow"
+    actions = ["execute-api:Invoke"]
+
+    resources = [
+      "${aws_api_gateway_rest_api.template_automation.execution_arn}/*/${aws_api_gateway_method.create_template.http_method}${aws_api_gateway_resource.template.path}"
+    ]
+
+    principals {
+      type        = "AWS"
+      identifiers = var.allowed_iam_arns
+    }
+  }
+}
+
+# Resource policy for API Gateway when IAM auth is enabled
+resource "aws_api_gateway_rest_api_policy" "template_automation" {
+  count = var.enable_iam_auth ? 1 : 0
+
+  rest_api_id = aws_api_gateway_rest_api.template_automation.id
+  policy      = data.aws_iam_policy_document.api_gateway_invoke[0].json
+}
+
+resource "aws_api_gateway_integration" "lambda_integration" {
+  rest_api_id = aws_api_gateway_rest_api.template_automation.id
+  resource_id = aws_api_gateway_resource.template.id
+  http_method = aws_api_gateway_method.create_template.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.template_automation.invoke_arn
+}
+
+# Allow API Gateway to invoke the Lambda function
+resource "aws_lambda_permission" "api_gateway" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.template_automation.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_api_gateway_rest_api.template_automation.execution_arn}/*/*${aws_api_gateway_resource.template.path}"
+}
+
+# API Gateway deployment and stage
+resource "aws_api_gateway_deployment" "template_automation" {
+  rest_api_id = aws_api_gateway_rest_api.template_automation.id
+
+  triggers = {
+    redeployment = sha1(jsonencode([
+      aws_api_gateway_resource.template.id,
+      aws_api_gateway_method.create_template.id,
+      aws_api_gateway_integration.lambda_integration.id,
+    ]))
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  depends_on = [
+    aws_api_gateway_method.create_template,
+    aws_api_gateway_integration.lambda_integration
+  ]
+}
+
+resource "aws_api_gateway_stage" "template_automation" {
+  deployment_id = aws_api_gateway_deployment.template_automation.id
+  rest_api_id   = aws_api_gateway_rest_api.template_automation.id
+  stage_name    = "prod"
+}

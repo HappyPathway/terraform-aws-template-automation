@@ -102,3 +102,15 @@ variable "github_token" {
   })
   sensitive = true
 }
+
+variable "enable_iam_auth" {
+  description = "Enable IAM authentication for the Lambda function API endpoint"
+  type        = bool
+  default     = false
+}
+
+variable "allowed_iam_arns" {
+  description = "List of IAM ARNs allowed to invoke the Lambda function when IAM auth is enabled"
+  type        = list(string)
+  default     = []
+}
