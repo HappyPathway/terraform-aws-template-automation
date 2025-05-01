@@ -4,17 +4,6 @@ data "aws_region" "current" {}
 
 locals {
   lambda_function_name = "${var.name_prefix}-template-automation"
-  use_s3_source        = var.lambda_config.s3 != null
-  use_local_archive    = var.lambda_config.create_zipfile
-}
-
-# Create zip file from source code if enabled
-data "archive_file" "lambda" {
-  count       = local.use_local_archive ? 1 : 0
-  type        = "zip"
-  source_dir  = var.lambda_config.source_path
-  output_path = "${path.module}/lambda.zip"
-  excludes    = ["__pycache__", "*.pyc"]
 }
 
 # API Gateway
@@ -65,17 +54,21 @@ resource "aws_ssm_parameter" "parameters" {
 resource "aws_lambda_function" "this" {
   function_name = local.lambda_function_name
   role          = aws_iam_role.lambda.arn
-  handler       = "app.lambda_handler"
-  runtime       = var.lambda_config.runtime
   timeout       = var.lambda_config.timeout
   memory_size   = var.lambda_config.memory_size
+  publish       = true
 
-  # Source configuration - only one of these will be set
-  filename          = var.lambda_config.zip_path != null ? var.lambda_config.zip_path : (var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_path : null)
-  source_code_hash  = var.lambda_config.create_zipfile ? data.archive_file.lambda[0].output_base64sha256 : null
-  s3_bucket         = var.lambda_config.s3 != null ? var.lambda_config.s3.bucket : null
-  s3_key            = var.lambda_config.s3 != null ? var.lambda_config.s3.key : null
-  s3_object_version = var.lambda_config.s3 != null ? try(var.lambda_config.s3.object_version, null) : null
+  package_type = "Image"
+  image_uri    = var.lambda_config.image_uri
+
+  dynamic "image_config" {
+    for_each = var.lambda_config.image_config != null ? [var.lambda_config.image_config] : []
+    content {
+      command           = image_config.value.command
+      entry_point       = image_config.value.entry_point
+      working_directory = image_config.value.working_directory
+    }
+  }
 
   environment {
     variables = merge(

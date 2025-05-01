@@ -64,33 +64,24 @@ variable "template_topics" {
 variable "lambda_config" {
   description = "Lambda function configuration object"
   type = object({
-    runtime     = optional(string, "python3.9")
+    memory_size = optional(number, 512)
     timeout     = optional(number, 300)
-    memory_size = optional(number, 256)
-
+    
     # Environment configuration
     environment_variables = optional(map(string), {})
 
-    # Source configuration - one of these must be provided
-    create_zipfile = optional(bool, false)
-    source_path    = optional(string)
-    zip_path       = optional(string)
-
-    # S3 source configuration
-    s3 = optional(object({
-      bucket         = string
-      key            = string
-      object_version = optional(string)
+    # Container image configuration
+    image_uri   = string
+    image_config = optional(object({
+      command           = optional(list(string))
+      entry_point       = optional(list(string))
+      working_directory = optional(string)
     }))
   })
 
   validation {
-    condition = (
-      (var.lambda_config.create_zipfile && var.lambda_config.source_path != null) ||
-      (!var.lambda_config.create_zipfile && var.lambda_config.s3 == null && var.lambda_config.zip_path != null) ||
-      (!var.lambda_config.create_zipfile && var.lambda_config.s3 != null)
-    )
-    error_message = "One of the following combinations must be provided: (create_zipfile = true and source_path), (zip_path), or s3 configuration"
+    condition     = can(regex("^\\d+\\.dkr\\.ecr\\.[\\w-]+\\.amazonaws\\.com/.+:\\w+$", var.lambda_config.image_uri))
+    error_message = "The image_uri must be a valid ECR image URI (e.g., 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-image:latest)"
   }
 }
 
