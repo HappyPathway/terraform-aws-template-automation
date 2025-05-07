@@ -66,23 +66,18 @@ variable "lambda_config" {
   type = object({
     memory_size = optional(number, 512)
     timeout     = optional(number, 300)
-    
+
     # Environment configuration
     environment_variables = optional(map(string), {})
 
     # Container image configuration
-    image_uri   = string
+    image_uri = string
     image_config = optional(object({
       command           = optional(list(string))
       entry_point       = optional(list(string))
       working_directory = optional(string)
     }))
   })
-
-  validation {
-    condition     = can(regex("^\\d+\\.dkr\\.ecr\\.[\\w-]+\\.amazonaws\\.com/.+:\\w+$", var.lambda_config.image_uri))
-    error_message = "The image_uri must be a valid ECR image URI (e.g., 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-image:latest)"
-  }
 }
 
 variable "github_token" {
@@ -94,11 +89,7 @@ variable "github_token" {
   sensitive = true
 }
 
-variable "enable_iam_auth" {
-  description = "Enable IAM authentication for the Lambda function API endpoint"
-  type        = bool
-  default     = false
-}
+
 
 variable "allowed_iam_arns" {
   description = "List of IAM ARNs allowed to invoke the Lambda function when IAM auth is enabled"

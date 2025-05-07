@@ -1,9 +1,56 @@
 # Get AWS account and region information
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
+data "aws_partition" "current" {}
 
 locals {
   lambda_function_name = "${var.name_prefix}-template-automation"
+
+  # Sample payload for Lambda testing - template based on the actual template repository
+  eks_settings = {
+    attrs = {
+      account_name           = "dev-account"
+      aws_region             = data.aws_region.current.name
+      cluster_mailing_list   = "eks-admins@example.com"
+      cluster_name           = "example-cluster-dev"
+      eks_instance_disk_size = 100
+      eks_ng_desired_size    = 2
+      eks_ng_max_size        = 10
+      eks_ng_min_size        = 2
+      environment            = "development"
+      environment_abbr       = "dev"
+      organization           = "example:dept:team"
+      finops_project_name    = "example_project"
+      finops_project_number  = "fp00000001"
+      finops_project_role    = "example_project_app"
+      vpc_domain_name        = "dev.example.com"
+      vpc_name               = "vpc-dev"
+    }
+    tags = {
+      "slim:schedule" = "8:00-17:00"
+      managed_by      = "terraform"
+      owner           = "platform-team"
+    }
+  }
+
+  generic_settings = {
+    attrs = {
+      account_name = "dev-account"
+      aws_region   = data.aws_region.current.name
+      environment  = "development"
+    }
+    tags = {
+      managed_by = "terraform"
+      owner      = "platform-team"
+    }
+  }
+
+  sample_payload = {
+    project_name          = "example-${var.name_prefix}-cluster"
+    template_settings     = var.template_repo_name == "template-eks-cluster" ? local.eks_settings : local.generic_settings
+    trigger_init_workflow = true
+    owning_team           = "platform-team"
+  }
 }
 
 # API Gateway
@@ -116,7 +163,7 @@ resource "aws_iam_role" "lambda" {
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = "lambda.amazonaws.com"
+        Service = "lambda.${data.aws_partition.current.dns_suffix}"
       }
     }]
   })
@@ -140,7 +187,7 @@ resource "aws_iam_role_policy" "parameter_store" {
           "ssm:GetParametersByPath"
         ]
         Resource = [
-          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.parameter_store_prefix}/*"
+          "arn:${data.aws_partition.current.partition}:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.parameter_store_prefix}/*"
         ]
       }
     ]
@@ -161,7 +208,7 @@ resource "aws_iam_role_policy" "secrets_manager" {
           "secretsmanager:GetSecretValue"
         ]
         Resource = [
-          "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.github_token.secret_name}-*"
+          "arn:${data.aws_partition.current.partition}:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.github_token.secret_name}-*"
         ]
       }
     ]
@@ -171,7 +218,7 @@ resource "aws_iam_role_policy" "secrets_manager" {
 # CloudWatch Logs policy
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
   role       = aws_iam_role.lambda.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # Secrets Manager secret for GitHub token
@@ -187,99 +234,4 @@ resource "aws_secretsmanager_secret_version" "github_token" {
   secret_string = var.github_token.token
 }
 
-resource "aws_api_gateway_rest_api" "template_automation" {
-  name        = "${var.name_prefix}-template-automation"
-  description = "API for template automation Lambda function"
 
-  endpoint_configuration {
-    types = ["REGIONAL"]
-  }
-}
-
-resource "aws_api_gateway_resource" "template" {
-  rest_api_id = aws_api_gateway_rest_api.template_automation.id
-  parent_id   = aws_api_gateway_rest_api.template_automation.root_resource_id
-  path_part   = "template"
-}
-
-resource "aws_api_gateway_method" "create_template" {
-  rest_api_id   = aws_api_gateway_rest_api.template_automation.id
-  resource_id   = aws_api_gateway_resource.template.id
-  http_method   = "POST"
-  authorization = var.enable_iam_auth ? "AWS_IAM" : "NONE"
-}
-
-# IAM Policy for API Gateway method access
-data "aws_iam_policy_document" "api_gateway_invoke" {
-  count = var.enable_iam_auth ? 1 : 0
-
-  statement {
-    effect = "Allow"
-    actions = ["execute-api:Invoke"]
-
-    resources = [
-      "${aws_api_gateway_rest_api.template_automation.execution_arn}/*/${aws_api_gateway_method.create_template.http_method}${aws_api_gateway_resource.template.path}"
-    ]
-
-    principals {
-      type        = "AWS"
-      identifiers = var.allowed_iam_arns
-    }
-  }
-}
-
-# Resource policy for API Gateway when IAM auth is enabled
-resource "aws_api_gateway_rest_api_policy" "template_automation" {
-  count = var.enable_iam_auth ? 1 : 0
-
-  rest_api_id = aws_api_gateway_rest_api.template_automation.id
-  policy      = data.aws_iam_policy_document.api_gateway_invoke[0].json
-}
-
-resource "aws_api_gateway_integration" "lambda_integration" {
-  rest_api_id = aws_api_gateway_rest_api.template_automation.id
-  resource_id = aws_api_gateway_resource.template.id
-  http_method = aws_api_gateway_method.create_template.http_method
-
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.template_automation.invoke_arn
-}
-
-# Allow API Gateway to invoke the Lambda function
-resource "aws_lambda_permission" "api_gateway" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.template_automation.function_name
-  principal     = "apigateway.amazonaws.com"
-
-  source_arn = "${aws_api_gateway_rest_api.template_automation.execution_arn}/*/*${aws_api_gateway_resource.template.path}"
-}
-
-# API Gateway deployment and stage
-resource "aws_api_gateway_deployment" "template_automation" {
-  rest_api_id = aws_api_gateway_rest_api.template_automation.id
-
-  triggers = {
-    redeployment = sha1(jsonencode([
-      aws_api_gateway_resource.template.id,
-      aws_api_gateway_method.create_template.id,
-      aws_api_gateway_integration.lambda_integration.id,
-    ]))
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-
-  depends_on = [
-    aws_api_gateway_method.create_template,
-    aws_api_gateway_integration.lambda_integration
-  ]
-}
-
-resource "aws_api_gateway_stage" "template_automation" {
-  deployment_id = aws_api_gateway_deployment.template_automation.id
-  rest_api_id   = aws_api_gateway_rest_api.template_automation.id
-  stage_name    = "prod"
-}
