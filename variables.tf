@@ -77,6 +77,12 @@ variable "lambda_config" {
       entry_point       = optional(list(string))
       working_directory = optional(string)
     }))
+
+    # VPC configuration
+    vpc_config = optional(object({
+      subnet_ids         = list(string)
+      security_group_ids = list(string)
+    }))
   })
 }
 

@@ -117,6 +117,14 @@ resource "aws_lambda_function" "this" {
     }
   }
 
+  dynamic "vpc_config" {
+    for_each = var.lambda_config.vpc_config != null ? [var.lambda_config.vpc_config] : []
+    content {
+      subnet_ids         = vpc_config.value.subnet_ids
+      security_group_ids = vpc_config.value.security_group_ids
+    }
+  }
+
   environment {
     variables = merge(
       var.lambda_config.environment_variables,
@@ -219,6 +227,12 @@ resource "aws_iam_role_policy" "secrets_manager" {
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
   role       = aws_iam_role.lambda.name
   policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# VPC access policy for Lambda
+resource "aws_iam_role_policy_attachment" "lambda_vpc" {
+  role       = aws_iam_role.lambda.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
 # Secrets Manager secret for GitHub token
