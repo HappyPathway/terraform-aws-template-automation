@@ -91,6 +91,7 @@ variable "github_token" {
   type = object({
     secret_name = string
     token       = optional(string)
+    kms_key_id  = optional(string)
   })
   sensitive = true
 }

@@ -23,6 +23,11 @@ output "lambda_role_arn" {
   value       = aws_iam_role.lambda.arn
 }
 
+output "lambda_role_id" {
+  description = "The ID of the Lambda execution role"
+  value       = aws_iam_role.lambda.id
+}
+
 output "api_execution_arn" {
   description = "The execution ARN to be used in IAM policies"
   value       = aws_apigatewayv2_api.this.execution_arn

@@ -223,6 +223,28 @@ resource "aws_iam_role_policy" "secrets_manager" {
   })
 }
 
+# IAM policy for KMS access
+resource "aws_iam_role_policy" "kms_access" {
+  name = "${var.name_prefix}-kms-access-policy"
+  role = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey"
+        ]
+        Resource = [
+          var.github_token.kms_key_id != null ? var.github_token.kms_key_id : "*"
+        ]
+      }
+    ]
+  })
+}
+
 # CloudWatch Logs policy
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
   role       = aws_iam_role.lambda.name
@@ -237,9 +259,10 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc" {
 
 # Secrets Manager secret for GitHub token
 resource "aws_secretsmanager_secret" "github_token" {
-  count = var.github_token.token != null ? 1 : 0
-  name  = var.github_token.secret_name
-  tags  = var.tags
+  count      = var.github_token.token != null ? 1 : 0
+  name       = var.github_token.secret_name
+  kms_key_id = var.github_token.kms_key_id
+  tags       = var.tags
 }
 
 resource "aws_secretsmanager_secret_version" "github_token" {
