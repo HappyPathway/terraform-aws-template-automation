@@ -2,6 +2,19 @@
 
 This Terraform module deploys a template automation solution using AWS Lambda and API Gateway. It provides a serverless architecture for automating template creation and management.
 
+## Overview
+
+This repository provides reusable Terraform modules for deploying and managing the Lambda function and related infrastructure that automate repository creation and configuration. It is part of a four-repository system for infrastructure automation.
+
+## System Integration
+
+This repository works together with the following:
+
+1. **template-repos-lambda-deployment**: Uses these modules to deploy the Lambda function and manage AWS resources.
+2. **template-automation-lambda**: The Lambda function code that is deployed and managed by these modules.
+
+The modules in this repository are consumed by the deployment repository to provision all necessary AWS resources for the automation system.
+
 ## Features
 
 - Serverless API endpoint via API Gateway
