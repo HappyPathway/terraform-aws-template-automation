@@ -12,6 +12,7 @@ This repository works together with the following:
 
 1. **template-repos-lambda-deployment**: Uses these modules to deploy the Lambda function and manage AWS resources.
 2. **template-automation-lambda**: The Lambda function code that is deployed and managed by these modules.
+3. **packer-pipeline**: Powers the CI/CD process by building the Lambda container images that this module deploys.
 
 The modules in this repository are consumed by the deployment repository to provision all necessary AWS resources for the automation system.
 
@@ -23,12 +24,38 @@ The modules in this repository are consumed by the deployment repository to prov
 - Configurable environment variables
 - CORS configuration for API Gateway
 - Customizable resource naming via prefix
+- Integration with container images built by the packer-pipeline tool
 
-## Lambda Build Process
+## Lambda Build Process with packer-pipeline
 
-This module deploys the template automation Lambda function, which is built separately in the template-automation-lambda repository using a Packer configuration file. The build process runs in GitHub Actions, creating the deployment package that this module uses.
+This module deploys the template automation Lambda function as a container image that is built separately using the packer-pipeline tool. The packer-pipeline tool:
 
-While this module handles the deployment of the Lambda function to AWS, it relies on the pre-built Lambda package created through the Packer-based build pipeline.
+1. Creates or updates an AWS CodeBuild project
+2. Uploads the Lambda function source code to S3
+3. Executes a Packer build in CodeBuild
+4. Pushes the resulting container image to Amazon ECR
+5. Provides consistent build environments for every build
+
+When using this module with container images built via packer-pipeline, you should configure the Lambda function to use the ECR image:
+
+```hcl
+module "template_automation" {
+  source = "github.e.it.census.gov/SCT-Engineering/terraform-aws-template-automation"
+
+  name_prefix = "template-repos"
+  
+  # Lambda configuration using container image from ECR
+  lambda_config = {
+    # Use a container image from ECR built with packer-pipeline
+    image_uri = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/template-automation-lambda:latest"
+    # Other Lambda configuration...
+  }
+  
+  # Other module configuration...
+}
+```
+
+For more information on building Lambda container images with packer-pipeline, see the [packer-pipeline repository](https://github.e.it.census.gov/SCT-Engineering/packer-pipeline).
 
 ## Usage
 
@@ -53,27 +80,23 @@ module "template_automation" {
     # token     = "your-token-here"  # Optional: Provide directly (not recommended for production)
   }
   
-  # Lambda configuration
+  # Lambda configuration options
+  
+  # Option 1: Using a container image built with packer-pipeline
   lambda_config = {
-    create_zipfile = true
-    source_path    = "../template_automation"  # Path to your Lambda source code
-    runtime        = "python3.9"
-    memory_size    = 256
-    timeout        = 300
-    
-    # Alternative options for deployment package:
-    # Option 1: Use pre-built zip file
-    # create_zipfile = false
-    # zip_path      = "path/to/function.zip"
-    
-    # Option 2: Use S3-hosted deployment package (recommended for Packer-built Lambda)
-    # create_zipfile = false
-    # s3 = {
-    #   bucket         = "my-lambda-bucket"
-    #   key            = "lambda/template-automation.zip"
-    #   object_version = "1" # optional
-    # }
+    image_uri    = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/template-automation-lambda:latest"
+    memory_size  = 512
+    timeout      = 300
   }
+  
+  # Option 2: Using a zip file deployment
+  # lambda_config = {
+  #   create_zipfile = true
+  #   source_path    = "../template_automation"  # Path to your Lambda source code
+  #   runtime        = "python3.9"
+  #   memory_size    = 256
+  #   timeout        = 300
+  # }
   
   # Parameter Store configuration 
   parameter_store_prefix = "/template-automation"
