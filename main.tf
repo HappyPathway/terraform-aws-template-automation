@@ -3,53 +3,30 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 data "aws_partition" "current" {}
 
+# CloudWatch Log Group for Lambda (managed, with retention)
+resource "aws_cloudwatch_log_group" "lambda" {
+  name              = "/aws/lambda/${local.lambda_function_name}"
+  retention_in_days = var.log_retention_in_days
+  tags              = var.tags
+}
+
 locals {
   lambda_function_name = "${var.name_prefix}-template-automation"
 
-  # Sample payload for Lambda testing - template based on the actual template repository
-  eks_settings = {
-    attrs = {
-      account_name           = "dev-account"
-      aws_region             = data.aws_region.current.name
-      cluster_mailing_list   = "eks-admins@example.com"
-      cluster_name           = "example-cluster-dev"
-      eks_instance_disk_size = 100
-      eks_ng_desired_size    = 2
-      eks_ng_max_size        = 10
-      eks_ng_min_size        = 2
-      environment            = "development"
-      environment_abbr       = "dev"
-      organization           = "example:dept:team"
-      finops_project_name    = "example_project"
-      finops_project_number  = "fp00000001"
-      finops_project_role    = "example_project_app"
-      vpc_domain_name        = "dev.example.com"
-      vpc_name               = "vpc-dev"
-    }
-    tags = {
-      "slim:schedule" = "8:00-17:00"
-      managed_by      = "terraform"
-      owner           = "platform-team"
-    }
-  }
-
-  generic_settings = {
-    attrs = {
-      account_name = "dev-account"
-      aws_region   = data.aws_region.current.name
-      environment  = "development"
-    }
-    tags = {
-      managed_by = "terraform"
-      owner      = "platform-team"
-    }
-  }
-
   sample_payload = {
-    project_name          = "example-${var.name_prefix}-cluster"
-    template_settings     = var.template_repo_name == "template-eks-cluster" ? local.eks_settings : local.generic_settings
-    trigger_init_workflow = true
-    owning_team           = "platform-team"
+    RequestType       = "Create"
+    ResponseURL       = "https://cloudformation-custom-resource-response-useast1.s3.amazonaws.com/example"
+    StackId           = "arn:${data.aws_partition.current.partition}:cloudformation:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:stack/example-stack/example-id"
+    RequestId         = "example-request-id"
+    ResourceType      = "Custom::RepositoryCreator"
+    LogicalResourceId = "ExampleRepository"
+    ResourceProperties = {
+      ServiceToken = aws_lambda_function.this.arn
+      ProjectName  = "example-${var.name_prefix}-repo"
+      OwningTeam   = "platform-team"
+      Environment  = "development"
+      AwsRegion    = data.aws_region.current.name
+    }
   }
 }
 
@@ -136,6 +113,20 @@ resource "aws_lambda_function" "this" {
   }
 
   tags = var.tags
+
+  depends_on = [
+    aws_cloudwatch_log_group.lambda,
+    aws_iam_role_policy_attachment.lambda_logs,
+  ]
+}
+
+# Lambda permission for CloudFormation Custom Resource invocation
+resource "aws_lambda_permission" "cloudformation" {
+  statement_id   = "AllowCloudFormationInvoke"
+  action         = "lambda:InvokeFunction"
+  function_name  = aws_lambda_function.this.function_name
+  principal      = "cloudformation.amazonaws.com"
+  source_account = data.aws_caller_identity.current.account_id
 }
 
 # API Gateway Integration

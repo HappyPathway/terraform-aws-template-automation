@@ -8,6 +8,26 @@ output "lambda_function_name" {
   value       = aws_lambda_function.this.function_name
 }
 
+output "lambda_function_invoke_arn" {
+  description = "The invoke ARN of the Lambda function (for use as CloudFormation Custom Resource ServiceToken)"
+  value       = aws_lambda_function.this.invoke_arn
+}
+
+output "cloudformation_service_token" {
+  description = "The Lambda ARN to use as the ServiceToken in CloudFormation Custom::RepositoryCreator resources"
+  value       = aws_lambda_function.this.arn
+}
+
+output "cloudwatch_log_group_name" {
+  description = "The name of the CloudWatch Log Group for the Lambda function"
+  value       = aws_cloudwatch_log_group.lambda.name
+}
+
+output "cloudwatch_log_group_arn" {
+  description = "The ARN of the CloudWatch Log Group for the Lambda function"
+  value       = aws_cloudwatch_log_group.lambda.arn
+}
+
 output "api_endpoint" {
   description = "The URL of the API Gateway endpoint"
   value       = "${aws_apigatewayv2_api.this.api_endpoint}/template"

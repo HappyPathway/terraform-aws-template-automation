@@ -9,6 +9,12 @@ variable "tags" {
   default     = {}
 }
 
+variable "log_retention_in_days" {
+  description = "Number of days to retain Lambda CloudWatch log events"
+  type        = number
+  default     = 14
+}
+
 variable "parameter_store_prefix" {
   description = "Prefix for SSM parameters (e.g., /template-automation)"
   type        = string
