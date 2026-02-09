@@ -16,9 +16,9 @@ variable "log_retention_in_days" {
 }
 
 variable "parameter_store_prefix" {
-  description = "Prefix for SSM parameters (e.g., /template-automation)"
+  description = "Prefix for SSM parameters. Defaults to /<name_prefix> to avoid conflicts between deployments."
   type        = string
-  default     = "/template-automation"
+  default     = null
 }
 
 variable "ssm_parameters" {

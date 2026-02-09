@@ -11,7 +11,8 @@ resource "aws_cloudwatch_log_group" "lambda" {
 }
 
 locals {
-  lambda_function_name = "${var.name_prefix}-template-automation"
+  lambda_function_name   = "${var.name_prefix}-template-automation"
+  parameter_store_prefix = var.parameter_store_prefix != null ? var.parameter_store_prefix : "/${var.name_prefix}"
 
   sample_payload = {
     RequestType       = "Create"
@@ -68,7 +69,7 @@ resource "aws_ssm_parameter" "parameters" {
     }
   )
 
-  name  = "${var.parameter_store_prefix}/${each.key}"
+  name  = "${local.parameter_store_prefix}/${each.key}"
   type  = "String"
   value = each.value
   tags  = var.tags
@@ -106,7 +107,7 @@ resource "aws_lambda_function" "this" {
     variables = merge(
       var.lambda_config.environment_variables,
       {
-        PARAM_STORE_PREFIX       = var.parameter_store_prefix
+        PARAM_STORE_PREFIX       = local.parameter_store_prefix
         GITHUB_TOKEN_SECRET_NAME = var.github_token.secret_name
       }
     )
@@ -186,7 +187,7 @@ resource "aws_iam_role_policy" "parameter_store" {
           "ssm:GetParametersByPath"
         ]
         Resource = [
-          "arn:${data.aws_partition.current.partition}:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.parameter_store_prefix}/*"
+          "arn:${data.aws_partition.current.partition}:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${local.parameter_store_prefix}/*"
         ]
       }
     ]
