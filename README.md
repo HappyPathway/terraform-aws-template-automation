@@ -1,34 +1,34 @@
 # Terraform AWS Template Automation Module
 
-This Terraform module deploys a template automation solution using AWS Lambda and API Gateway. It provides a serverless architecture for automating template creation and management.
+This Terraform module deploys the **EKS Terragrunt Repository Generator** — a Lambda-based solution that creates GitHub repositories pre-populated with rendered Terragrunt/HCL configuration for EKS cluster deployments. It is triggered via CloudFormation Custom Resources from AWS Service Catalog.
 
 ## Overview
 
-This repository provides reusable Terraform modules for deploying and managing the Lambda function and related infrastructure that automate repository creation and configuration. It is part of a four-repository system for infrastructure automation.
+This repository provides reusable Terraform modules for deploying and managing the Lambda function and related infrastructure that automate EKS cluster repository creation. It is part of a four-repository system:
 
 ## System Integration
 
 This repository works together with the following:
 
-1. **template-repos-lambda-deployment**: Uses these modules to deploy the Lambda function and manage AWS resources.
-2. **template-automation-lambda**: The Lambda function code that is deployed and managed by these modules.
-3. **packer-pipeline**: Powers the CI/CD process by building the Lambda container images that this module deploys.
+1. **lambda-template-repo-generator**: The Lambda function code and Service Catalog product template that is deployed by this module.
+2. **packer-pipeline**: Powers the CI/CD process by building the Lambda container images that this module deploys.
+3. **template-eks-cluster**: The GitHub template repository used to seed new EKS cluster repos.
 
-The modules in this repository are consumed by the deployment repository to provision all necessary AWS resources for the automation system.
+The modules in this repository are consumed by `lambda-template-repo-generator/deploy/` to provision all necessary AWS resources for the automation system.
 
 ## Features
 
 - Serverless API endpoint via API Gateway
-- Python-based Lambda function deployment
-- Secure IAM roles and permissions
-- Configurable environment variables
-- CORS configuration for API Gateway
-- Customizable resource naming via prefix
-- Integration with container images built by the packer-pipeline tool
+- Python-based Lambda function deployment (container image)
+- CloudFormation Custom Resource integration for Service Catalog
+- Secure IAM roles and permissions (Secrets Manager, SSM Parameter Store)
+- VPC-capable Lambda for private GitHub Enterprise access
+- Customizable resource naming via `name_prefix`
+- EKS-specific: renders 8 Terragrunt/HCL files from Jinja2 templates
 
 ## Lambda Build Process with packer-pipeline
 
-This module deploys the template automation Lambda function as a container image that is built separately using the packer-pipeline tool. The packer-pipeline tool:
+This module deploys the Lambda function as a container image that is built separately using the packer-pipeline tool. The packer-pipeline tool:
 
 1. Creates or updates an AWS CodeBuild project
 2. Uploads the Lambda function source code to S3
@@ -36,22 +36,17 @@ This module deploys the template automation Lambda function as a container image
 4. Pushes the resulting container image to Amazon ECR
 5. Provides consistent build environments for every build
 
-When using this module with container images built via packer-pipeline, you should configure the Lambda function to use the ECR image:
-
 ```hcl
-module "template_automation" {
+module "eks_terragrunt_repo_generator" {
   source = "github.e.it.census.gov/SCT-Engineering/terraform-aws-template-automation"
 
-  name_prefix = "template-repos"
+  name_prefix = "eks-terragrunt-repo-gen"
   
-  # Lambda configuration using container image from ECR
   lambda_config = {
-    # Use a container image from ECR built with packer-pipeline
-    image_uri = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/template-automation-lambda:latest"
-    # Other Lambda configuration...
+    image_uri = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/eks-terragrunt-repo-generator/lambda:latest"
   }
   
-  # Other module configuration...
+  # ... other configuration ...
 }
 ```
 
@@ -60,58 +55,43 @@ For more information on building Lambda container images with packer-pipeline, s
 ## Usage
 
 ```hcl
-module "template_automation" {
+module "eks_terragrunt_repo_generator" {
   source = "github.com/djaboxx/terraform-aws-template-automation"
 
-  name_prefix = "my-automation"
+  name_prefix = "eks-terragrunt-repo-gen"
   
-  # GitHub configuration
-  github_api_url            = "https://api.github.com"
-  github_org_name           = "my-org"
-  template_repo_name        = "my-template-repo"
+  # GitHub Enterprise configuration
+  github_api_url            = "https://github.e.it.census.gov"
+  github_org_name           = "SCT-Engineering"
+  template_repo_name        = "template-eks-cluster"
   template_config_file      = "config.json"
   github_commit_author_name = "Template Automation"
   github_commit_author_email = "automation@example.com"
-  template_topics           = "infrastructure,template"
+  template_topics           = "infrastructure,eks,terragrunt"
   
   # GitHub token configuration
   github_token = {
-    secret_name = "github/token"
-    # token     = "your-token-here"  # Optional: Provide directly (not recommended for production)
+    secret_name = "/eks-cluster-deployment/github_token"
   }
   
-  # Lambda configuration options
-  
-  # Option 1: Using a container image built with packer-pipeline
+  # Lambda configuration using container image from ECR
   lambda_config = {
-    image_uri    = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/template-automation-lambda:latest"
+    image_uri    = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/eks-terragrunt-repo-generator/lambda:latest"
     memory_size  = 512
     timeout      = 300
+
+    vpc_config = {
+      subnet_ids         = ["subnet-0b1992a84536c581b"]
+      security_group_ids = ["sg-0641c697588b9aa6b"]
+    }
   }
-  
-  # Option 2: Using a zip file deployment
-  # lambda_config = {
-  #   create_zipfile = true
-  #   source_path    = "../template_automation"  # Path to your Lambda source code
-  #   runtime        = "python3.9"
-  #   memory_size    = 256
-  #   timeout        = 300
-  # }
   
   # Parameter Store configuration 
-  parameter_store_prefix = "/template-automation"
-  # Additional custom parameters if needed
-  ssm_parameters = {
-    "ADDITIONAL_PARAM" = "custom-value"
-  }
-
-  environment_variables = {
-    SECRET_NAME = "github/token"  # AWS Secrets Manager secret containing GitHub token
-  }
+  parameter_store_prefix = "/eks-terragrunt-repo-gen"
 
   tags = {
     Environment = "production"
-    Project     = "template-automation"
+    Project     = "eks-terragrunt-repo-generator"
   }
 }
 ```
@@ -134,17 +114,19 @@ module "template_automation" {
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | name_prefix | Prefix to be used for resource names | `string` | n/a | yes |
-| parameter_store_prefix | Prefix for SSM parameters | `string` | `/template-automation` | no |
+| parameter_store_prefix | Prefix for SSM parameters | `string` | `/<name_prefix>` | no |
 | ssm_parameters | Additional SSM parameters to create | `map(string)` | `{}` | no |
 | github_api_url | URL for the GitHub Enterprise API | `string` | `https://api.github.com` | no |
 | github_org_name | GitHub organization name | `string` | n/a | yes |
 | template_repo_name | GitHub repository name for the template | `string` | n/a | yes |
+| repo_visibility | Default visibility for newly created repos (`private`, `internal`, `public`) | `string` | `internal` | no |
 | template_config_file | Name of the config file to write in new repositories | `string` | `config.json` | no |
 | github_commit_author_name | Name for commit author | `string` | `Template Automation` | no |
 | github_commit_author_email | Email for commit author | `string` | `automation@example.com` | no |
 | template_topics | Topics to assign to new repositories (comma-separated string) | `string` | `infrastructure` | no |
 | github_token | GitHub token configuration object with secret_name (required) and token (optional) | `object` | n/a | yes |
-| lambda_config | Lambda function configuration object | `object` | n/a | yes |
+| lambda_config | Lambda function configuration object (image_uri, memory_size, timeout, vpc_config) | `object` | n/a | yes |
+| log_retention_in_days | CloudWatch log retention in days | `number` | `14` | no |
 | tags | Tags to be applied to all resources | `map(string)` | `{}` | no |
 
 ## Outputs

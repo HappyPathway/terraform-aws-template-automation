@@ -19,14 +19,20 @@ locals {
     ResponseURL       = "https://cloudformation-custom-resource-response-useast1.s3.amazonaws.com/example"
     StackId           = "arn:${data.aws_partition.current.partition}:cloudformation:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:stack/example-stack/example-id"
     RequestId         = "example-request-id"
-    ResourceType      = "Custom::RepositoryCreator"
-    LogicalResourceId = "ExampleRepository"
+    ResourceType      = "Custom::GitHubRepository"
+    LogicalResourceId = "EKSClusterRepository"
     ResourceProperties = {
-      ServiceToken = aws_lambda_function.this.arn
-      ProjectName  = "example-${var.name_prefix}-repo"
-      OwningTeam   = "platform-team"
-      Environment  = "development"
-      AwsRegion    = data.aws_region.current.name
+      ServiceToken     = aws_lambda_function.this.arn
+      project_name     = "example-${var.name_prefix}-repo"
+      owning_team      = "platform-team"
+      cluster_name     = "example-${var.name_prefix}-cluster"
+      environment      = "dev"
+      aws_region       = data.aws_region.current.name
+      account_name     = "csvd-dev-ew"
+      aws_account_id   = data.aws_caller_identity.current.account_id
+      environment_abbr = "dev"
+      vpc_name         = "csvd-dev-ew-vpc-01"
+      vpc_domain_name  = "dev.inf.csp1.census.gov"
     }
   }
 }
