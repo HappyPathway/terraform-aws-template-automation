@@ -11,6 +11,8 @@ template_config_file       = "config.json"
 github_commit_author_name  = "Template Automation"
 github_commit_author_email = "automation@census.gov"
 template_topics            = "infrastructure"
+# GHE enterprise policy blocks 'private' repo creation for org members; use 'internal'
+repo_visibility            = "internal"
 
 # Lambda configuration
 lambda_config = {

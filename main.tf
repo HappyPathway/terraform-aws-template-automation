@@ -109,6 +109,10 @@ resource "aws_lambda_function" "this" {
       {
         PARAM_STORE_PREFIX       = local.parameter_store_prefix
         GITHUB_TOKEN_SECRET_NAME = var.github_token.secret_name
+        GITHUB_API               = var.github_api_url
+        GITHUB_ORG_NAME          = var.github_org_name
+        TEMPLATE_REPO_NAME       = var.template_repo_name
+        REPO_VISIBILITY          = var.repo_visibility
       }
     )
   }

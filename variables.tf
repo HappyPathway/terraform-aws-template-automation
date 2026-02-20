@@ -43,6 +43,17 @@ variable "template_repo_name" {
   type        = string
 }
 
+variable "repo_visibility" {
+  description = "Default visibility for newly created repositories. GHE enterprise policies often block 'private'; use 'internal' (visible to org members) or 'public'. Overrides the REPO_VISIBILITY env var baked into the container."
+  type        = string
+  default     = "internal"
+
+  validation {
+    condition     = contains(["private", "internal", "public"], var.repo_visibility)
+    error_message = "repo_visibility must be one of: private, internal, public."
+  }
+}
+
 variable "template_config_file" {
   description = "Name of the config file to write in new repositories"
   type        = string
