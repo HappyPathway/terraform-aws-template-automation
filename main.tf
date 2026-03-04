@@ -2,6 +2,7 @@
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 data "aws_partition" "current" {}
+data "aws_organizations_organization" "current" {}
 
 # CloudWatch Log Group for Lambda (managed, with retention)
 resource "aws_cloudwatch_log_group" "lambda" {
@@ -132,12 +133,14 @@ resource "aws_lambda_function" "this" {
 }
 
 # Lambda permission for CloudFormation Custom Resource invocation
+# Uses principal_org_id so CloudFormation in any account within the AWS Organization
+# can invoke the Lambda cross-account (required for Service Catalog org-wide sharing).
 resource "aws_lambda_permission" "cloudformation" {
-  statement_id   = "AllowCloudFormationInvoke"
-  action         = "lambda:InvokeFunction"
-  function_name  = aws_lambda_function.this.function_name
-  principal      = "cloudformation.amazonaws.com"
-  source_account = data.aws_caller_identity.current.account_id
+  statement_id     = "AllowCloudFormationInvokeOrgWide"
+  action           = "lambda:InvokeFunction"
+  function_name    = aws_lambda_function.this.function_name
+  principal        = "cloudformation.amazonaws.com"
+  principal_org_id = data.aws_organizations_organization.current.id
 }
 
 # API Gateway Integration
