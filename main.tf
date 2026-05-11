@@ -133,14 +133,41 @@ resource "aws_lambda_function" "this" {
 }
 
 # Lambda permission for CloudFormation Custom Resource invocation
-# Uses principal_org_id so CloudFormation in any account within the AWS Organization
-# can invoke the Lambda cross-account (required for Service Catalog org-wide sharing).
+# Uses principal_org_id so CloudFormation in any account within the home AWS
+# Organization can invoke the Lambda cross-account (Service Catalog org-wide sharing).
 resource "aws_lambda_permission" "cloudformation" {
   statement_id     = "AllowCloudFormationInvokeOrgWide"
   action           = "lambda:InvokeFunction"
   function_name    = aws_lambda_function.this.function_name
   principal        = "cloudformation.amazonaws.com"
   principal_org_id = data.aws_organizations_organization.current.id
+}
+
+# Lambda permissions for accounts that live outside the home AWS Organization.
+#
+# Service Catalog invokes Lambda Custom Resources using the SC launch role's
+# assumed-role identity, not cloudformation.amazonaws.com. The Lambda resource
+# policy must therefore grant the specific IAM launch role ARN from each account.
+#
+# NOTE: GovCloud Lambda add-permission rejects these calls if the policy already
+# contains any raw AWS-principal statement (role/user ARN or ID). Remove any
+# such manually-added statements before applying (the blocker was the legacy
+# AllowLabLaunchRole statement with a raw role ID).
+locals {
+  trusted_account_launch_role_arns = {
+    for name, cfg in var.trusted_aws_accounts :
+    name => "arn:${data.aws_partition.current.partition}:iam::${cfg.account_id}:role/${cfg.launch_role_name}"
+    if try(cfg.launch_role_name, "") != ""
+  }
+}
+
+resource "aws_lambda_permission" "cloudformation_trusted_account" {
+  for_each = local.trusted_account_launch_role_arns
+
+  statement_id  = "AllowCloudFormationInvoke-${each.key}"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.this.function_name
+  principal     = each.value
 }
 
 # API Gateway Integration

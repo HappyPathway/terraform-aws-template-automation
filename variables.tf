@@ -120,3 +120,39 @@ variable "allowed_iam_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "trusted_aws_accounts" {
+  description = <<-EOT
+    Map of friendly account name => account config for accounts outside the home
+    AWS Organization that need cross-account Service Catalog → Lambda invocation.
+
+    Service Catalog (not CloudFormation) invokes Lambda Custom Resources using the
+    SC launch role's assumed-role identity. The Lambda resource policy must grant
+    the specific IAM role ARN of that launch role.
+
+    NOTE: GovCloud Lambda add-permission will be blocked if the function policy
+    contains any raw AWS-principal statement (role/user ARN or ID). Remove any
+    such manually-added statements before applying.
+
+    Fields:
+      account_id       - (required) 12-digit AWS account ID
+      enabled          - (required) true to create the permission
+      launch_role_name - (optional) IAM role name of the SC launch role in the
+                         target account; permission is only created when set
+
+    Example:
+      trusted_aws_accounts = {
+        "lab-gov-operations-nonprod" = {
+          account_id       = "036728032133"
+          enabled          = true
+          launch_role_name = "r-ent-servicecatalog-eksterragrunt-launch-role"
+        }
+      }
+  EOT
+  type = map(object({
+    account_id       = string
+    enabled          = bool
+    launch_role_name = optional(string, "")
+  }))
+  default = {}
+}
